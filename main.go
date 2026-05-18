@@ -27,9 +27,24 @@ func getProdutos(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, produtos)
 }
 
+// postProdutos adiciona um produto a partir do JSON recebido no corpo da requisição.
+func postProdutos(c *gin.Context) {
+	var novoProduto produto
+
+	// BindJSON converte o JSON do corpo da requisição em um produto.
+	if err := c.BindJSON(&novoProduto); err != nil {
+		return
+	}
+
+	// Adiciona o novo produto à lista.
+	produtos = append(produtos, novoProduto)
+	c.IndentedJSON(http.StatusCreated, novoProduto)
+}
+
 func main() {
 	router := gin.Default()
 	router.GET("/produtos", getProdutos)
+	router.POST("/produtos", postProdutos)
 
 	router.Run("localhost:8080")
 }
