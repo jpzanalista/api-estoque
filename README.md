@@ -1,63 +1,79 @@
 # api-estoque
 
-API REST de **controle de estoque de produtos**, desenvolvida em **Go** com o
-framework web **Gin**.
-
-O projeto foi construído a partir do tutorial oficial
-[Desenvolvendo uma API RESTful com Go e Gin](https://go.dev/doc/tutorial/web-service-gin),
-adaptado para o tema de gestão de estoque. Cada etapa foi registrada em um
-commit, praticando o versionamento com Git.
-
-## Sobre a API
-
-A API gerencia uma coleção de produtos — cada um com id, nome, preço, quantidade
-e categoria. Os dados são mantidos em memória (sem banco de dados).
-
-### Endpoints
-
-| Método | Caminho         | Descrição                    |
-|--------|-----------------|------------------------------|
-| GET    | `/produtos`     | Lista todos os produtos      |
-| GET    | `/produtos/:id` | Busca um produto pelo seu id |
-| POST   | `/produtos`     | Cadastra um novo produto     |
+API REST para controle de estoque de produtos, desenvolvida em Go. Os produtos são armazenados em um banco de dados PostgreSQL, garantindo que os dados persistam entre as execuções.
 
 ## Tecnologias
 
-- [Go](https://go.dev/) 1.26
-- [Gin](https://github.com/gin-gonic/gin) — framework web
-- Git e GitHub para controle de versão
+- **Go** — linguagem da aplicação
+- **Gin** — framework HTTP e roteamento
+- **PostgreSQL** — banco de dados relacional
+- **Docker** — execução do banco de dados em contêiner
+- **database/sql** com o driver **lib/pq** — acesso ao banco
+
+## Pré-requisitos
+
+- Go instalado
+- Docker instalado
 
 ## Como executar
 
-Pré-requisito: ter o [Go instalado](https://go.dev/doc/install).
+### 1. Subir o banco de dados
 
-```bash
-git clone https://github.com/jpzanalista/api-estoque.git
-cd api-estoque
+Crie e inicie um contêiner PostgreSQL:
+
+```
+docker run --name estoque-postgres \
+  -e POSTGRES_USER=estoque \
+  -e POSTGRES_PASSWORD=estoque123 \
+  -e POSTGRES_DB=estoque \
+  -p 5432:5432 \
+  -v estoque-pgdata:/var/lib/postgresql/data \
+  -d postgres:17
+```
+
+### 2. Criar a tabela
+
+Conecte-se ao banco:
+
+```
+docker exec -it estoque-postgres psql -U estoque -d estoque
+```
+
+E crie a tabela `produtos`:
+
+```sql
+CREATE TABLE produtos (
+    id         SERIAL PRIMARY KEY,
+    nome       VARCHAR(100) NOT NULL,
+    preco      DOUBLE PRECISION NOT NULL,
+    quantidade INTEGER NOT NULL,
+    categoria  VARCHAR(50) NOT NULL
+);
+```
+
+### 3. Iniciar a API
+
+```
 go run .
 ```
 
-O servidor sobe em `localhost:8080`. Em outro terminal, teste os endpoints:
+A API ficará disponível em `http://localhost:8080`.
 
-```bash
-# Listar todos os produtos
-curl http://localhost:8080/produtos
+## Endpoints
 
-# Buscar um produto pelo id
-curl http://localhost:8080/produtos/1
+| Método | Rota            | Descrição                  |
+|--------|-----------------|----------------------------|
+| GET    | `/produtos`     | Lista todos os produtos    |
+| GET    | `/produtos/:id` | Retorna um produto pelo id |
+| POST   | `/produtos`     | Cadastra um novo produto   |
 
-# Cadastrar um novo produto
-curl http://localhost:8080/produtos \
-  --header "Content-Type: application/json" \
-  --request POST \
-  --data '{"id":"4","nome":"Webcam HD","preco":159.90,"quantidade":12,"categoria":"Periféricos"}'
+No `POST`, o campo `id` é gerado automaticamente pelo banco e não deve ser enviado. Exemplo de corpo da requisição:
+
+```json
+{
+    "nome": "Webcam HD",
+    "preco": 159.90,
+    "quantidade": 12,
+    "categoria": "Periféricos"
+}
 ```
-
-## O que o projeto demonstra
-
-- Construção de uma API REST com o framework Gin;
-- Roteamento de requisições por método HTTP e caminho;
-- Conversão de structs Go para JSON e vice-versa;
-- Leitura de parâmetros de URL e do corpo de requisições;
-- Uso de códigos de status HTTP (200, 201, 404);
-- Versionamento incremental com Git, endpoint a endpoint.
