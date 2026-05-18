@@ -1,9 +1,12 @@
 package main
 
 import (
+	"database/sql"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 // produto representa os dados de um produto do estoque.
@@ -22,18 +25,18 @@ var produtos = []produto{
 	{ID: "3", Nome: "Mouse sem fio", Preco: 79.90, Quantidade: 40, Categoria: "Periféricos"},
 }
 
+// db é a conexão com o banco de dados PostgreSQL.
+var db *sql.DB
+
 // getProdutos responde com a lista de todos os produtos em JSON.
 func getProdutos(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, produtos)
 }
 
-// getProdutoPorID localiza o produto cujo id corresponde ao
-// parâmetro enviado pelo cliente e o retorna como resposta.
+// getProdutoPorID localiza o produto cujo id corresponde ao parâmetro.
 func getProdutoPorID(c *gin.Context) {
 	id := c.Param("id")
 
-	// Percorre a lista de produtos procurando um cujo id
-	// seja igual ao parâmetro recebido.
 	for _, p := range produtos {
 		if p.ID == id {
 			c.IndentedJSON(http.StatusOK, p)
@@ -47,17 +50,31 @@ func getProdutoPorID(c *gin.Context) {
 func postProdutos(c *gin.Context) {
 	var novoProduto produto
 
-	// BindJSON converte o JSON do corpo da requisição em um produto.
 	if err := c.BindJSON(&novoProduto); err != nil {
 		return
 	}
 
-	// Adiciona o novo produto à lista.
 	produtos = append(produtos, novoProduto)
 	c.IndentedJSON(http.StatusCreated, novoProduto)
 }
 
 func main() {
+	// String de conexão — usa os valores definidos ao criar o contêiner.
+	connStr := "host=localhost port=5432 user=estoque password=estoque123 dbname=estoque sslmode=disable"
+
+	// sql.Open prepara o acesso ao banco (ainda não conecta de fato).
+	var err error
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal("Erro ao preparar o banco: ", err)
+	}
+
+	// Ping força uma conexão real, confirmando que o banco está acessível.
+	if err := db.Ping(); err != nil {
+		log.Fatal("Erro ao conectar no banco: ", err)
+	}
+	log.Println("Conectado ao PostgreSQL com sucesso.")
+
 	router := gin.Default()
 	router.GET("/produtos", getProdutos)
 	router.GET("/produtos/:id", getProdutoPorID)
