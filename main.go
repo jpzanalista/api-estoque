@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -11,50 +12,82 @@ import (
 
 // produto representa os dados de um produto do estoque.
 type produto struct {
-	ID         string  `json:"id"`
+	ID         int64   `json:"id"`
 	Nome       string  `json:"nome"`
 	Preco      float64 `json:"preco"`
 	Quantidade int     `json:"quantidade"`
 	Categoria  string  `json:"categoria"`
 }
 
-// produtos é a lista que serve como o estoque inicial (dados de exemplo).
-var produtos = []produto{
-	{ID: "1", Nome: "Teclado Mecânico", Preco: 249.90, Quantidade: 15, Categoria: "Periféricos"},
-	{ID: "2", Nome: "Monitor 24 polegadas", Preco: 899.00, Quantidade: 8, Categoria: "Monitores"},
-	{ID: "3", Nome: "Mouse sem fio", Preco: 79.90, Quantidade: 40, Categoria: "Periféricos"},
-}
-
 // db é a conexão com o banco de dados PostgreSQL.
 var db *sql.DB
 
-// getProdutos responde com a lista de todos os produtos em JSON.
+// getProdutos responde com a lista de todos os produtos do banco.
 func getProdutos(c *gin.Context) {
+	rows, err := db.Query("SELECT id, nome, preco, quantidade, categoria FROM produtos")
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	produtos := []produto{}
+	for rows.Next() {
+		var p produto
+		if err := rows.Scan(&p.ID, &p.Nome, &p.Preco, &p.Quantidade, &p.Categoria); err != nil {
+			c.IndentedJSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+			return
+		}
+		produtos = append(produtos, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+
 	c.IndentedJSON(http.StatusOK, produtos)
 }
 
-// getProdutoPorID localiza o produto cujo id corresponde ao parâmetro.
+// getProdutoPorID busca no Banco o produto com id informado.
 func getProdutoPorID(c *gin.Context) {
-	id := c.Param("id")
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "produto não encontrado"})
+		return
+	}
 
-	for _, p := range produtos {
-		if p.ID == id {
-			c.IndentedJSON(http.StatusOK, p)
+	var p produto
+	row := db.QueryRow("SELECT id, nome, preco, quantidade, categoria FROM produtos WHERE id = $1", id)
+	if err := row.Scan(&p.ID, &p.Nome, &p.Preco, &p.Quantidade, &p.Categoria); err != nil {
+		if err == sql.ErrNoRows {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"message": "produto não encontrado"})
 			return
 		}
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
 	}
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "produto não encontrado"})
+
+	c.IndentedJSON(http.StatusOK, p)
 }
 
-// postProdutos adiciona um produto a partir do JSON recebido no corpo da requisição.
+// postProdutos adiciona um produto a partir do JSON recebido.
 func postProdutos(c *gin.Context) {
 	var novoProduto produto
-
 	if err := c.BindJSON(&novoProduto); err != nil {
 		return
 	}
 
-	produtos = append(produtos, novoProduto)
+	// O INSERT grava o produto; o RETURNING id devolve o id gerado pelo banco.
+	err := db.QueryRow(
+		"INSERT INTO produtos (nome, preco, quantidade, categoria) VALUES ($1, $2, $3, $4) RETURNING id",
+		novoProduto.Nome, novoProduto.Preco, novoProduto.Quantidade, novoProduto.Categoria,
+	).Scan(&novoProduto.ID)
+	if err != nil {
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"erro": err.Error()})
+		return
+	}
+
 	c.IndentedJSON(http.StatusCreated, novoProduto)
 }
 
