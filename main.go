@@ -27,6 +27,22 @@ func getProdutos(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, produtos)
 }
 
+// getProdutoPorID localiza o produto cujo id corresponde ao
+// parâmetro enviado pelo cliente e o retorna como resposta.
+func getProdutoPorID(c *gin.Context) {
+	id := c.Param("id")
+
+	// Percorre a lista de produtos procurando um cujo id
+	// seja igual ao parâmetro recebido.
+	for _, p := range produtos {
+		if p.ID == id {
+			c.IndentedJSON(http.StatusOK, p)
+			return
+		}
+	}
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "produto não encontrado"})
+}
+
 // postProdutos adiciona um produto a partir do JSON recebido no corpo da requisição.
 func postProdutos(c *gin.Context) {
 	var novoProduto produto
@@ -44,6 +60,7 @@ func postProdutos(c *gin.Context) {
 func main() {
 	router := gin.Default()
 	router.GET("/produtos", getProdutos)
+	router.GET("/produtos/:id", getProdutoPorID)
 	router.POST("/produtos", postProdutos)
 
 	router.Run("localhost:8080")
